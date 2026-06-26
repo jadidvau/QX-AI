@@ -15,6 +15,10 @@ class SignalRepository(private val signalDao: SignalDao) {
         signalDao.deleteSignalById(id)
     }
 
+    suspend fun updateOutcome(id: Int, outcome: String) {
+        signalDao.updateSignalOutcome(id, outcome)
+    }
+
     suspend fun clearAll() {
         signalDao.clearAllSignals()
     }

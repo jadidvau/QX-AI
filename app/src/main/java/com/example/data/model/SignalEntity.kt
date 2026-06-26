@@ -36,5 +36,14 @@ data class SignalEntity(
     val trendScore: Int = 0,
     val candlePatternScore: Int = 0,
     val supportResistanceScore: Int = 0,
-    val momentumIndicatorScore: Int = 0
+    val momentumIndicatorScore: Int = 0,
+    val volatilityScore: Int = 0,
+    
+    // Outcome tracking
+    val outcome: String = "PENDING", // "PENDING", "WIN", "LOSS", "DRAW"
+    val marketType: String = "Normal", // "Normal", "OTC"
+    val trendType: String = "Sideways", // "Uptrend", "Downtrend", "Sideways"
+    val isImageClear: Boolean = true,
+    val lastCandleColor: String = "Green",
+    val isNearSr: String = "None"
 )

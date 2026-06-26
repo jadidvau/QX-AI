@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
+import com.example.ui.components.AppLogo
 import com.example.ui.viewmodel.SignalViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -76,7 +77,7 @@ fun DashboardScreen(
                 }
                 // Convert to ARGB_8888 config if needed
                 val argbBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-                viewModel.setUploadedImage(argbBitmap)
+                viewModel.scanScreenshotForPreFill(argbBitmap)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -88,7 +89,7 @@ fun DashboardScreen(
     ) { bitmap: Bitmap? ->
         bitmap?.let {
             val argbBitmap = it.copy(Bitmap.Config.ARGB_8888, true)
-            viewModel.setUploadedImage(argbBitmap)
+            viewModel.scanScreenshotForPreFill(argbBitmap)
         }
     }
 
@@ -120,21 +121,28 @@ fun DashboardScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = "QX CHART ANALYZER",
-                    color = CyberGreen,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                )
-                Text(
-                    text = "AI Technical Scanner",
-                    color = Color.White,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = (-0.5).sp
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                AppLogo(size = 50.dp, showText = false)
+                
+                Column {
+                    Text(
+                        text = "QX CHART ANALYZER",
+                        color = CyberGreen,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp
+                    )
+                    Text(
+                        text = "AI Technical Scanner",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = (-0.5).sp
+                    )
+                }
             }
 
             IconButton(
@@ -468,7 +476,7 @@ fun DashboardScreen(
         Button(
             onClick = {
                 state.uploadedImageBitmap?.let {
-                    viewModel.analyzeScreenshot(it)
+                    viewModel.setShowConfirmationDialog(true)
                 }
             },
             modifier = Modifier
@@ -498,7 +506,7 @@ fun DashboardScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (state.uploadedImageBitmap == null) "UPLOAD SCREENSHOT TO SCAN" else "ANALYZE SCREENSHOT WITH AI",
+                    text = if (state.uploadedImageBitmap == null) "UPLOAD SCREENSHOT TO SCAN" else "CONFIRM & ANALYZE CHART",
                     color = if (state.uploadedImageBitmap != null) Color.Black else TextSecondary,
                     fontWeight = FontWeight.Black,
                     fontSize = 13.sp
@@ -897,6 +905,275 @@ fun DashboardScreen(
                 textAlign = TextAlign.Center
             )
         }
+    }
+
+    if (state.showConfirmationDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.setShowConfirmationDialog(false) },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = null,
+                        tint = CyberGreen,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Verify & Adjust Scan",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Verify the OCR scan results below to ensure extreme accuracy before triggering AI analysis.",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp
+                    )
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+
+                    // 1. Asset Pair
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Asset Pair", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        val pairs = listOf("EUR/USD", "GBP/USD", "USD/JPY", "Crypto")
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            pairs.forEach { asset ->
+                                val active = state.manualAssetInput == asset
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (active) CyberGreen.copy(alpha = 0.15f) else DarkSurface)
+                                        .border(1.dp, if (active) CyberGreen else Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+                                        .clickable { viewModel.setManualAsset(asset) }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(asset, color = if (active) CyberGreen else TextPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Timeframe Selector
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Timeframe", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("1 minute", "5 minutes", "15 minutes").forEach { tf ->
+                                val active = state.manualTimeframeInput == tf
+                                val label = when (tf) {
+                                    "1 minute" -> "1m"
+                                    "5 minutes" -> "5m"
+                                    "15 minutes" -> "15m"
+                                    else -> tf
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (active) CyberAmber.copy(alpha = 0.15f) else DarkSurface)
+                                        .border(1.dp, if (active) CyberAmber else Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+                                        .clickable { viewModel.setManualTimeframe(tf) }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(label, color = if (active) CyberAmber else TextPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Last Candle Color
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Last Candle Color", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Green", "Red").forEach { col ->
+                                val active = state.manualLastCandleColorInput == col
+                                val colAccent = if (col == "Green") CyberGreen else CyberRed
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (active) colAccent.copy(alpha = 0.15f) else DarkSurface)
+                                        .border(1.dp, if (active) colAccent else Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+                                        .clickable { viewModel.setManualLastCandleColor(col) }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(col, color = if (active) colAccent else TextPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. Trend Direction
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Trend Direction", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Uptrend", "Downtrend", "Sideways").forEach { trend ->
+                                val active = state.manualTrendInput == trend
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (active) CyberBlue.copy(alpha = 0.15f) else DarkSurface)
+                                        .border(1.dp, if (active) CyberBlue else Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+                                        .clickable { viewModel.setManualTrend(trend) }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(trend, color = if (active) CyberBlue else TextPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    // 5. Support / Resistance Touch
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Support / Resistance Touch", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Support Touch", "Resistance Touch", "None").forEach { touch ->
+                                val active = state.manualSrTouchInput == touch
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (active) CyberPurple.copy(alpha = 0.15f) else DarkSurface)
+                                        .border(1.dp, if (active) CyberPurple else Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+                                        .clickable { viewModel.setManualSrTouch(touch) }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(touch.replace(" Touch", ""), color = if (active) CyberPurple else TextPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    // 6. Market Type
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Market Type", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Normal", "OTC").forEach { market ->
+                                val active = state.manualMarketTypeInput == market
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (active) CyberAmber.copy(alpha = 0.15f) else DarkSurface)
+                                        .border(1.dp, if (active) CyberAmber else Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+                                        .clickable { viewModel.setManualMarketType(market) }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(market, color = if (active) CyberAmber else TextPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    // 7. Volatility Level
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Volatility Level", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Low", "Normal", "High", "Extreme").forEach { vol ->
+                                val active = state.manualVolatilityInput == vol
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (active) CyberRed.copy(alpha = 0.15f) else DarkSurface)
+                                        .border(1.dp, if (active) CyberRed else Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+                                        .clickable { viewModel.setManualVolatility(vol) }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(vol, color = if (active) CyberRed else TextPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+
+                    // 8. Multi-Timeframe Confirmation Switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Multi-Timeframe Trend Confirmation", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Cross-checks overall 5m/15m trend structure", color = TextSecondary, fontSize = 9.sp)
+                        }
+                        Switch(
+                            checked = state.manualMultiTimeframeInput,
+                            onCheckedChange = { viewModel.setManualMultiTimeframe(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = CyberGreen,
+                                checkedTrackColor = CyberGreen.copy(alpha = 0.3f),
+                                uncheckedThumbColor = Color.Gray,
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.05f)
+                            )
+                        )
+                    }
+
+                    // 9. Image Clear Switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Screenshot is Clear", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Ensures high fidelity OCR & Vision reading", color = TextSecondary, fontSize = 9.sp)
+                        }
+                        Switch(
+                            checked = state.manualIsImageClearInput,
+                            onCheckedChange = { viewModel.setManualIsImageClear(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = CyberGreen,
+                                checkedTrackColor = CyberGreen.copy(alpha = 0.3f),
+                                uncheckedThumbColor = Color.Gray,
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.05f)
+                            )
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.setShowConfirmationDialog(false)
+                        state.uploadedImageBitmap?.let {
+                            viewModel.analyzeScreenshot(it)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CyberGreen),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("CONFIRM & ANALYZE SCREENSHOT", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.setShowConfirmationDialog(false) }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            },
+            containerColor = DarkSurfaceLighter,
+            shape = RoundedCornerShape(16.dp)
+        )
     }
 }
 

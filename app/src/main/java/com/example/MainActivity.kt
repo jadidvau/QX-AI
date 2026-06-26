@@ -15,6 +15,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.CandlestickChart
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.CompareArrows
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +49,10 @@ import com.example.data.repository.SignalRepository
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.StrategyScreen
+import com.example.ui.screens.Mt5ConfirmationScreen
+import com.example.ui.screens.CombinedSignalScreen
+import com.example.ui.screens.SplashScreen
+import com.example.ui.screens.AboutScreen
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -55,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.CyberBlue
 import com.example.ui.theme.CyberGreen
+import com.example.ui.theme.CyberPurple
 import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.DarkSurfaceLighter
@@ -79,7 +88,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MyApplicationTheme {
-                MainAppContainer(viewModel = viewModel)
+                var showSplash by remember { mutableStateOf(true) }
+                if (showSplash) {
+                    SplashScreen(onTimeout = { showSplash = false })
+                } else {
+                    MainAppContainer(viewModel = viewModel)
+                }
             }
         }
     }
@@ -164,10 +178,10 @@ fun MainAppContainer(viewModel: SignalViewModel) {
                     icon = {
                         Icon(
                             imageVector = Icons.Default.CandlestickChart,
-                            contentDescription = "Analyzer Screen"
+                            contentDescription = "Market QX Screen"
                         )
                     },
-                    label = { Text("Analyzer", fontSize = 11.sp) },
+                    label = { Text("Market QX", fontSize = 10.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = CyberGreen,
                         selectedTextColor = CyberGreen,
@@ -175,7 +189,7 @@ fun MainAppContainer(viewModel: SignalViewModel) {
                         unselectedTextColor = TextSecondary,
                         indicatorColor = CyberGreen.copy(alpha = 0.1f)
                     ),
-                    modifier = Modifier.testTag("tab_analyzer")
+                    modifier = Modifier.testTag("tab_market_qx")
                 )
 
                 NavigationBarItem(
@@ -183,11 +197,11 @@ fun MainAppContainer(viewModel: SignalViewModel) {
                     onClick = { selectedTab = 1 },
                     icon = {
                         Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = "Signals Log History"
+                            imageVector = Icons.Default.TrendingUp,
+                            contentDescription = "MT5 Confirmation"
                         )
                     },
-                    label = { Text("Logs", fontSize = 11.sp) },
+                    label = { Text("MT5", fontSize = 10.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = CyberGreen,
                         selectedTextColor = CyberGreen,
@@ -195,7 +209,7 @@ fun MainAppContainer(viewModel: SignalViewModel) {
                         unselectedTextColor = TextSecondary,
                         indicatorColor = CyberGreen.copy(alpha = 0.1f)
                     ),
-                    modifier = Modifier.testTag("tab_logs")
+                    modifier = Modifier.testTag("tab_mt5")
                 )
 
                 NavigationBarItem(
@@ -203,11 +217,11 @@ fun MainAppContainer(viewModel: SignalViewModel) {
                     onClick = { selectedTab = 2 },
                     icon = {
                         Icon(
-                            imageVector = Icons.Default.Book,
-                            contentDescription = "Education Hub"
+                            imageVector = Icons.Default.CompareArrows,
+                            contentDescription = "Combined Convergence"
                         )
                     },
-                    label = { Text("Learn", fontSize = 11.sp) },
+                    label = { Text("Combined", fontSize = 10.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = CyberGreen,
                         selectedTextColor = CyberGreen,
@@ -215,7 +229,67 @@ fun MainAppContainer(viewModel: SignalViewModel) {
                         unselectedTextColor = TextSecondary,
                         indicatorColor = CyberGreen.copy(alpha = 0.1f)
                     ),
-                    modifier = Modifier.testTag("tab_learn")
+                    modifier = Modifier.testTag("tab_combined")
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "Signals Log History"
+                        )
+                    },
+                    label = { Text("History", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = CyberGreen,
+                        selectedTextColor = CyberGreen,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary,
+                        indicatorColor = CyberGreen.copy(alpha = 0.1f)
+                    ),
+                    modifier = Modifier.testTag("tab_history")
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.BarChart,
+                            contentDescription = "Accuracy Statistics"
+                        )
+                    },
+                    label = { Text("Accuracy", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = CyberGreen,
+                        selectedTextColor = CyberGreen,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary,
+                        indicatorColor = CyberGreen.copy(alpha = 0.1f)
+                    ),
+                    modifier = Modifier.testTag("tab_accuracy")
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 5,
+                    onClick = { selectedTab = 5 },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "About App"
+                        )
+                    },
+                    label = { Text("About", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = CyberGreen,
+                        selectedTextColor = CyberGreen,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary,
+                        indicatorColor = CyberGreen.copy(alpha = 0.1f)
+                    ),
+                    modifier = Modifier.testTag("tab_about")
                 )
             }
         },
@@ -230,8 +304,11 @@ fun MainAppContainer(viewModel: SignalViewModel) {
         ) {
             when (selectedTab) {
                 0 -> DashboardScreen(viewModel = viewModel)
-                1 -> HistoryScreen(viewModel = viewModel)
-                2 -> StrategyScreen()
+                1 -> Mt5ConfirmationScreen(viewModel = viewModel)
+                2 -> CombinedSignalScreen(viewModel = viewModel)
+                3 -> HistoryScreen(viewModel = viewModel, showOnlyDashboard = false)
+                4 -> HistoryScreen(viewModel = viewModel, showOnlyDashboard = true)
+                5 -> AboutScreen()
             }
         }
     }

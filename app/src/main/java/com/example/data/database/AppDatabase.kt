@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import com.example.data.dao.SignalDao
 import com.example.data.model.SignalEntity
 
-@Database(entities = [SignalEntity::class], version = 2, exportSchema = false)
+@Database(entities = [SignalEntity::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun signalDao(): SignalDao
 

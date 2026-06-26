@@ -157,23 +157,25 @@ object GeminiApiClient {
                Combine these manual inputs with what is visually detected. Manual inputs should override or refine any visual ambiguity.
                
             **SCORING SYSTEM**:
-            Assess and output these integer scores (0 to 25 each):
-            - `trendScore`: Strength of trend alignment (0 to 25)
-            - `candlePatternScore`: Strength of candlestick pattern (e.g. Hammer, Shooting Star, Engulfing) (0 to 25)
-            - `supportResistanceScore`: Proximity and strength of S/R rejection or breakout (0 to 25)
-            - `momentumIndicatorScore`: Indicator alignment or price action momentum strength (0 to 25)
+            Assess and output these integer scores (0 to 20 each):
+            - `trendScore`: Strength of trend alignment (0 to 20)
+            - `candlePatternScore`: Strength of candlestick pattern (e.g. Hammer, Shooting Star, Engulfing) (0 to 20)
+            - `supportResistanceScore`: Proximity and strength of S/R rejection or breakout (0 to 20)
+            - `momentumIndicatorScore`: Indicator alignment or price action momentum strength (0 to 20)
+            - `volatilityScore`: Volatility score (stable movement = 20, bad volatility = lower) (0 to 20)
             
-            The total sum of these four scores must equal the `confidence` score (0 to 100).
+            The total sum of these five scores must equal the `confidence` score (0 to 100).
             
             **SIGNAL DECISION RULES**:
             - Must return exactly one of: 'BUY' (for CALL), 'SELL' (for PUT), 'WAIT' (for NO TRADE), 'AVOID' (for AVOID MARKET).
             - If the image is unclear, blurry, cropped badly, or candles are not readable, you MUST output signal = 'WAIT', confidence = 0, and in the reason state: "Image unclear, upload a clearer chart screenshot."
-            - If confidence is below 60%, you MUST output signal = 'WAIT'.
-            - If candles give mixed signals (bullish indicators conflict with bearish indicators), you MUST output signal = 'WAIT'.
-            - If the market is too volatile or has extreme price jumps, you MUST output signal = 'AVOID'.
-            - If confidence is 60–74%, marketCondition must be 'Weak signal'.
-            - If confidence is 75–84%, marketCondition must be 'Trending' or 'Ranging' (Strong Signal).
-            - If confidence is above 85%, marketCondition must be 'Trending' or 'Ranging' (Very Strong Signal).
+            - If confidence is below 70%, you MUST output signal = 'WAIT'.
+            - If confidence is 70-79%, you may output a 'BUY'/'SELL' signal labeled as 'Weak signal' in marketCondition, or output 'WAIT'.
+            - If confidence is 80-89%, you output 'BUY'/'SELL' labeled as 'Trending' or 'Ranging' (Strong Signal).
+            - If confidence is 90% or above, you output 'BUY'/'SELL' labeled as 'Trending' or 'Ranging' (Very Strong Signal).
+            - If candles give mixed signals or the market is sideways, you MUST output signal = 'WAIT'.
+            - If the market is too volatile, volatilityScore is low (< 10), or a news spike candle is visible, you MUST output signal = 'AVOID'.
+            - Never state 100% or "sure win".
             - SUGGESTED EXPIRY:
               - 1 minute chart: 1-2 minute expiry
               - 5 minute chart: 5-10 minute expiry
@@ -207,10 +209,12 @@ object GeminiApiClient {
             "detectedPrice" to SchemaProperty("STRING", "Current price extracted via OCR or 'Unknown'"),
             "detectedExpiry" to SchemaProperty("STRING", "Candle/timer expiry extracted via OCR or 'Unknown'"),
             "detectedPayout" to SchemaProperty("STRING", "Payout percentage extracted via OCR or 'Unknown'"),
-            "trendScore" to SchemaProperty("INTEGER", "Trend score from 0 to 25"),
-            "candlePatternScore" to SchemaProperty("INTEGER", "Candle pattern score from 0 to 25"),
-            "supportResistanceScore" to SchemaProperty("INTEGER", "Support/resistance score from 0 to 25"),
-            "momentumIndicatorScore" to SchemaProperty("INTEGER", "Momentum/indicator score from 0 to 25")
+            "trendScore" to SchemaProperty("INTEGER", "Trend score from 0 to 20"),
+            "candlePatternScore" to SchemaProperty("INTEGER", "Candle pattern score from 0 to 20"),
+            "supportResistanceScore" to SchemaProperty("INTEGER", "Support/resistance score from 0 to 20"),
+            "momentumIndicatorScore" to SchemaProperty("INTEGER", "Momentum/indicator score from 0 to 20"),
+            "volatilityScore" to SchemaProperty("INTEGER", "Volatility score from 0 to 20"),
+            "accuracyNote" to SchemaProperty("STRING", "Optional accuracy note comparing pattern against history")
         )
 
         val responseSchema = ResponseSchema(
@@ -219,7 +223,7 @@ object GeminiApiClient {
             required = listOf(
                 "signal", "confidence", "reason", "entry", "expiry", "riskLevel", "marketCondition",
                 "detectedAsset", "detectedTimeframe", "detectedPrice", "detectedExpiry", "detectedPayout",
-                "trendScore", "candlePatternScore", "supportResistanceScore", "momentumIndicatorScore"
+                "trendScore", "candlePatternScore", "supportResistanceScore", "momentumIndicatorScore", "volatilityScore"
             )
         )
 
@@ -351,6 +355,128 @@ object GeminiApiClient {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Gemini API request failed: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Sends a user-uploaded MetaTrader 5 chart screenshot to Gemini to analyze visually.
+     * Detects symbol name, timeframe, trend, candlestick structure, support/resistance, 
+     * moving averages, and secondary indicators like RSI/MACD/Bollinger Bands.
+     */
+    suspend fun analyzeMt5ScreenshotWithGemini(
+        bitmap: android.graphics.Bitmap,
+        manualSymbol: String? = null,
+        manualTimeframe: String? = null
+    ): SignalAnalysis? {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY" || apiKey.contains("PLACEHOLDER")) {
+            Log.d(TAG, "Gemini API key is not configured for MT5 Vision. Falling back to programmatic/mock analysis.")
+            return null
+        }
+
+        val prompt = """
+            Analyze the attached screenshot of a MetaTrader 5 (MT5) trading chart.
+            
+            Perform the following operations:
+            1. **OCR Text Extraction**: Look carefully for labels on the MT5 screen:
+               - Currency Symbol (e.g., EURUSD, GBPUSD, XAUUSD, BTCUSD, EURUSDm, etc.)
+               - Timeframe (e.g., M1, M5, M15, H1)
+               - Current Price / Quote
+            2. **Visual Candlestick Assessment**:
+               - Analyze the last 20 to 50 candles visually.
+               - Detect candle colors, body lengths, and shadows.
+               - Identify major support and resistance levels.
+               - Identify the current short-term trend (Uptrend, Downtrend, Sideways).
+            3. **Technical Indicators**:
+               - Detect visible moving averages (EMAs/SMAs) and see if price is above or below them.
+               - Detect secondary indicators if visible (RSI lines, MACD histograms, Bollinger Bands overlays).
+            4. **Manual User Context (if provided)**:
+               - Manual Symbol: ${manualSymbol ?: "Not specified"}
+               - Manual Timeframe: ${manualTimeframe ?: "Not specified"}
+               
+            **SCORING SYSTEM**:
+            Score each of these categories (0 to 20 each) based on what is visible:
+            - `trendScore`: Strength of trend (0 to 20)
+            - `candlePatternScore`: Candlestick structure strength (0 to 20)
+            - `supportResistanceScore`: Support and resistance structure (0 to 20)
+            - `momentumIndicatorScore`: Indicator values or visual momentum (0 to 20)
+            - `volatilityScore`: Volatility suitability (stable trends = 20, erratic/extreme = low) (0 to 20)
+            
+            The sum of these must equal `confidence` (0 to 100).
+            
+            **SIGNAL DECISION**:
+            - Output BUY (for CALL), SELL (for PUT), WAIT (for Sideways/Mixed), or AVOID (for Extreme Volatility).
+            - Do NOT promise 100% or guaranteed wins.
+            
+            Provide your response strictly in the specified JSON schema.
+        """.trimIndent()
+
+        val systemInstruction = """
+            You are Market QX AI's MT5 chart analyst.
+            You must reply ONLY with a valid JSON object matching the requested schema.
+            Do not provide financial advice, and do NOT guarantee profit.
+        """.trimIndent()
+
+        val properties = mapOf(
+            "signal" to SchemaProperty("STRING", "Must be exactly: 'BUY', 'SELL', 'WAIT', 'AVOID'"),
+            "confidence" to SchemaProperty("INTEGER", "An integer score from 0 to 100. Never give 100%."),
+            "reason" to SchemaProperty("STRING", "Bulleted explanation of the detected symbol, timeframe, indicators, support/resistance, and candlestick structure."),
+            "entry" to SchemaProperty("STRING", "Suggested entry suggestion."),
+            "expiry" to SchemaProperty("STRING", "Suggested expiry based on timeframe."),
+            "riskLevel" to SchemaProperty("STRING", "One of: 'Low', 'Medium', 'High'"),
+            "marketCondition" to SchemaProperty("STRING", "Current market condition, e.g. 'Trending', 'Sideways', 'Volatile'"),
+            "detectedAsset" to SchemaProperty("STRING", "Symbol name detected via OCR or 'Unknown'"),
+            "detectedTimeframe" to SchemaProperty("STRING", "Timeframe detected via OCR (e.g. M1, M5) or 'Unknown'"),
+            "detectedPrice" to SchemaProperty("STRING", "Current price extracted via OCR or 'Unknown'"),
+            "detectedExpiry" to SchemaProperty("STRING", "Expiry or None"),
+            "detectedPayout" to SchemaProperty("STRING", "None"),
+            "trendScore" to SchemaProperty("INTEGER", "Trend score from 0 to 20"),
+            "candlePatternScore" to SchemaProperty("INTEGER", "Candle pattern score from 0 to 20"),
+            "supportResistanceScore" to SchemaProperty("INTEGER", "Support/resistance score from 0 to 20"),
+            "momentumIndicatorScore" to SchemaProperty("INTEGER", "Momentum score from 0 to 20"),
+            "volatilityScore" to SchemaProperty("INTEGER", "Volatility score from 0 to 20"),
+            "accuracyNote" to SchemaProperty("STRING", "Comparison note")
+        )
+
+        val responseSchema = ResponseSchema(
+            type = "OBJECT",
+            properties = properties,
+            required = listOf(
+                "signal", "confidence", "reason", "entry", "expiry", "riskLevel", "marketCondition",
+                "detectedAsset", "detectedTimeframe", "detectedPrice", "trendScore", "candlePatternScore", 
+                "supportResistanceScore", "momentumIndicatorScore", "volatilityScore"
+            )
+        )
+
+        val request = GeminiRequest(
+            contents = listOf(
+                Content(
+                    parts = listOf(
+                        Part(text = prompt),
+                        Part(inlineData = InlineData(mimeType = "image/jpeg", data = bitmap.toBase64()))
+                    )
+                )
+            ),
+            generationConfig = GenerationConfig(
+                responseMimeType = "application/json",
+                responseSchema = responseSchema,
+                temperature = 0.15
+            ),
+            systemInstruction = Content(parts = listOf(Part(text = systemInstruction)))
+        )
+
+        return try {
+            val response = service.generateContent(apiKey, request)
+            val jsonText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+            if (jsonText != null) {
+                val nonNullJson: String = jsonText
+                moshi.adapter(SignalAnalysis::class.java).fromJson(nonNullJson)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Gemini vision MT5 API request failed: ${e.message}", e)
             null
         }
     }

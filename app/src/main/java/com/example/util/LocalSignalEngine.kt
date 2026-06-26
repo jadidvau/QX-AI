@@ -20,7 +20,9 @@ data class SignalAnalysis(
     val trendScore: Int = 0,
     val candlePatternScore: Int = 0,
     val supportResistanceScore: Int = 0,
-    val momentumIndicatorScore: Int = 0
+    val momentumIndicatorScore: Int = 0,
+    val volatilityScore: Int = 0,
+    val accuracyNote: String? = null
 )
 
 data class MarketSignal(

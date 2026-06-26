@@ -18,6 +18,9 @@ interface SignalDao {
     @Query("DELETE FROM signals WHERE id = :id")
     suspend fun deleteSignalById(id: Int)
 
+    @Query("UPDATE signals SET outcome = :outcome WHERE id = :id")
+    suspend fun updateSignalOutcome(id: Int, outcome: String)
+
     @Query("DELETE FROM signals")
     suspend fun clearAllSignals()
 }
