@@ -1,0 +1,6 @@
+{
+  "name": "Market QX AI Signal Analyzer",
+  "description": "Educational trading signals analyzer utilizing technical indicators and AI for Market QX / Quotex-style charts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
